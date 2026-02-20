@@ -1,9 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:movie_app/core/themes/app_theme.dart';
+import 'package:movie_app/core/di/injector.dart';
+import 'package:movie_app/features/favorite/presentation/bloc/favorite_bloc.dart';
 import 'package:movie_app/features/favorite/presentation/screen/favorite_screen.dart';
 import 'package:movie_app/features/home/presentation/screen/home_screen.dart';
+import 'package:movie_app/features/home/presentation/bloc/home_bloc.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: '.env');
+  await initDependencies();
   runApp(const MyApp());
 }
 
@@ -32,8 +40,24 @@ class _RootTabsState extends State<RootTabs> {
   int index = 0;
 
   @override
+  void initState() {
+    super.initState();
+    // Initialize favorites when app starts
+    getIt<FavoriteBloc>().add(const InitializeFavoritesEvent());
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final pages = const [HomeScreen(), FavoriteScreen()];
+    final pages = [
+      BlocProvider<HomeBloc>.value(
+        value: getIt<HomeBloc>(),
+        child: const HomeScreen(),
+      ),
+      BlocProvider<FavoriteBloc>.value(
+        value: getIt<FavoriteBloc>(),
+        child: const FavoriteScreen(),
+      ),
+    ];
     return Scaffold(
       body: pages[index],
       bottomNavigationBar: NavigationBar(

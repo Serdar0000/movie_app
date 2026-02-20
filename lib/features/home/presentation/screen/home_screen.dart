@@ -1,64 +1,234 @@
 import 'package:flutter/material.dart';
-import '../../domain/entity/movie_entity.dart';
-import '../widget/genre_section.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../bloc/home_bloc.dart';
+import '../../domain/entities/movie_entity.dart';
+import '../../../../core/di/injector.dart';
+import '../../../favorite/presentation/bloc/favorite_bloc.dart';
 import '../../../detail/presentation/screen/detail_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
-  static const Map<String, List<MovieEntity>> byGenre = {
-    'Action': [
-      MovieEntity(id: 1, title: 'Action One', bannerUrl: 'https://picsum.photos/seed/a1/900/500', genre: 'Action'),
-      MovieEntity(id: 2, title: 'Action Two', bannerUrl: 'https://picsum.photos/seed/a2/900/500', genre: 'Action'),
-      MovieEntity(id: 3, title: 'Action Three', bannerUrl: 'https://picsum.photos/seed/a3/900/500', genre: 'Action'),
-      MovieEntity(id: 4, title: 'Action Four', bannerUrl: 'https://picsum.photos/seed/a4/900/500', genre: 'Action'),
-      MovieEntity(id: 5, title: 'Action Five', bannerUrl: 'https://picsum.photos/seed/a5/900/500', genre: 'Action'),
-      MovieEntity(id: 6, title: 'Action Six', bannerUrl: 'https://picsum.photos/seed/a6/900/500', genre: 'Action'),
-      MovieEntity(id: 7, title: 'Action Seven', bannerUrl: 'https://picsum.photos/seed/a7/900/500', genre: 'Action'),
-      MovieEntity(id: 8, title: 'Action Eight', bannerUrl: 'https://picsum.photos/seed/a8/900/500', genre: 'Action'),
-    ],
-    'Comedy': [
-      MovieEntity(id: 11, title: 'Comedy One', bannerUrl: 'https://picsum.photos/seed/c1/900/500', genre: 'Comedy'),
-      MovieEntity(id: 12, title: 'Comedy Two', bannerUrl: 'https://picsum.photos/seed/c2/900/500', genre: 'Comedy'),
-      MovieEntity(id: 13, title: 'Comedy Three', bannerUrl: 'https://picsum.photos/seed/c3/900/500', genre: 'Comedy'),
-      MovieEntity(id: 14, title: 'Comedy Four', bannerUrl: 'https://picsum.photos/seed/c4/900/500', genre: 'Comedy'),
-      MovieEntity(id: 15, title: 'Comedy Five', bannerUrl: 'https://picsum.photos/seed/c5/900/500', genre: 'Comedy'),
-      MovieEntity(id: 16, title: 'Comedy Six', bannerUrl: 'https://picsum.photos/seed/c6/900/500', genre: 'Comedy'),
-      MovieEntity(id: 17, title: 'Comedy Seven', bannerUrl: 'https://picsum.photos/seed/c7/900/500', genre: 'Comedy'),
-      MovieEntity(id: 18, title: 'Comedy Eight', bannerUrl: 'https://picsum.photos/seed/c8/900/500', genre: 'Comedy'),
-    ],
-    'Drama': [
-      MovieEntity(id: 21, title: 'Drama One', bannerUrl: 'https://picsum.photos/seed/d1/900/500', genre: 'Drama'),
-      MovieEntity(id: 22, title: 'Drama Two', bannerUrl: 'https://picsum.photos/seed/d2/900/500', genre: 'Drama'),
-      MovieEntity(id: 23, title: 'Drama Three', bannerUrl: 'https://picsum.photos/seed/d3/900/500', genre: 'Drama'),
-      MovieEntity(id: 24, title: 'Drama Four', bannerUrl: 'https://picsum.photos/seed/d4/900/500', genre: 'Drama'),
-      MovieEntity(id: 25, title: 'Drama Five', bannerUrl: 'https://picsum.photos/seed/d5/900/500', genre: 'Drama'),
-      MovieEntity(id: 26, title: 'Drama Six', bannerUrl: 'https://picsum.photos/seed/d6/900/500', genre: 'Drama'),
-      MovieEntity(id: 27, title: 'Drama Seven', bannerUrl: 'https://picsum.photos/seed/d7/900/500', genre: 'Drama'),
-      MovieEntity(id: 28, title: 'Drama Eight', bannerUrl: 'https://picsum.photos/seed/d8/900/500', genre: 'Drama'),
-    ],
-  };
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    context.read<HomeBloc>().add(const FetchPopularMoviesEvent());
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Movies')),
-      body: ListView(
-        children: [
-          const SizedBox(height: 12),
-          for (final entry in byGenre.entries)
-            GenreSection(
-              genreTitle: entry.key,
-              movies: entry.value,
-              onMovieTap: (m) {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => DetailScreen(movie: m)),
-                );
-              },
-            ),
-          const SizedBox(height: 12),
-        ],
+      appBar: AppBar(
+        title: const Text('Popular Movies'),
+        centerTitle: false,
       ),
+      body: BlocBuilder<HomeBloc, HomeState>(
+        builder: (context, state) {
+          return state.when(
+            initial: () => const Center(
+              child: Text('No movies loaded yet'),
+            ),
+            loading: () => const Center(
+              child: CircularProgressIndicator(),
+            ),
+            success: (movies, moviesByGenre) {
+              if (moviesByGenre.isEmpty) {
+                return const Center(child: Text('No movies found'));
+              }
+
+              return CustomScrollView(
+                slivers: [
+                  ...moviesByGenre.entries.map((entry) {
+                    final genreName = entry.key;
+                    final genreMovies = entry.value;
+
+                    return SliverList(
+                      delegate: SliverChildListDelegate([
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                          child: Text(
+                            genreName,
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                        ),
+                        SizedBox(
+                          height: 280,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            itemCount: genreMovies.length,
+                            itemBuilder: (context, index) {
+                              final movie = genreMovies[index];
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                child: _MovieCard(movie: movie),
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                      ]),
+                    );
+                  }),
+                ],
+              );
+            },
+            error: (message) => Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text('Error: $message'),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      context
+                          .read<HomeBloc>()
+                          .add(const FetchPopularMoviesEvent());
+                    },
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _MovieCard extends StatelessWidget {
+  final MovieEntity movie;
+
+  const _MovieCard({required this.movie});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<FavoriteBloc, FavoriteState>(
+      bloc: getIt<FavoriteBloc>(),
+      builder: (context, favoriteState) {
+        final isFavorite = getIt<FavoriteBloc>().isFavorite(movie.id);
+
+        return GestureDetector(
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => DetailScreen(movieId: movie.id),
+              ),
+            );
+          },
+          child: SizedBox(
+            width: 140,
+            child: Card(
+              clipBehavior: Clip.antiAlias,
+              child: Stack(
+                children: [
+                  // Poster image
+                  movie.posterPath != null
+                      ? Image.network(
+                          'https://image.tmdb.org/t/p/w342${movie.posterPath}',
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          height: double.infinity,
+                          errorBuilder: (_, __, ___) => Container(
+                            color: Colors.grey[800],
+                            child: const Icon(
+                              Icons.image_not_supported,
+                              size: 48,
+                            ),
+                          ),
+                        )
+                      : Container(
+                          color: Colors.grey[800],
+                          child: const Icon(
+                            Icons.image_not_supported,
+                            size: 48,
+                          ),
+                        ),
+                  // Gradient overlay
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.7),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Title at bottom
+                  Positioned(
+                    bottom: 8,
+                    left: 8,
+                    right: 40,
+                    child: Text(
+                      movie.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                  // Rating
+                  Positioned(
+                    bottom: 8,
+                    left: 8,
+                    child: Row(
+                      children: [
+                        const Icon(Icons.star, color: Colors.amber, size: 12),
+                        const SizedBox(width: 2),
+                        Text(
+                          movie.voteAverage.toStringAsFixed(1),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Favorite button
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: IconButton(
+                      icon: Icon(
+                        isFavorite ? Icons.favorite : Icons.favorite_border,
+                        color: isFavorite ? Colors.red : Colors.white,
+                      ),
+                      iconSize: 18,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      onPressed: () {
+                        if (isFavorite) {
+                          getIt<FavoriteBloc>()
+                              .add(RemoveFavoriteEvent(movie.id));
+                        } else {
+                          getIt<FavoriteBloc>()
+                              .add(AddFavoriteEvent(movie.id));
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

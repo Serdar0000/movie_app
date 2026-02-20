@@ -1,39 +1,71 @@
 import 'package:flutter/material.dart';
-import '../../../home/domain/entity/movie_entity.dart';
-import '../../../home/presentation/widget/movie_card.dart';
-import '../../../detail/presentation/screen/detail_screen.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../bloc/favorite_bloc.dart';
+import '../../../../core/di/injector.dart';
 
 class FavoriteScreen extends StatelessWidget {
   const FavoriteScreen({super.key});
 
-  static const favorites = <MovieEntity>[
-    MovieEntity(id: 101, title: 'Favorite One', bannerUrl: 'https://picsum.photos/seed/f1/900/500', genre: 'Drama'),
-    MovieEntity(id: 102, title: 'Favorite Two', bannerUrl: 'https://picsum.photos/seed/f2/900/500', genre: 'Action'),
-  ];
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Favorite')),
-      body: ListView.separated(
-        padding: const EdgeInsets.all(16),
-        itemCount: favorites.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
-        itemBuilder: (_, i) {
-          final m = favorites[i];
-          return SizedBox(
-            height: 140,
-            child: MovieCard(
-              movie: m,
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => DetailScreen(movie: m)),
+      appBar: AppBar(
+        title: const Text('My Favorites'),
+        centerTitle: false,
+      ),
+      body: BlocBuilder<FavoriteBloc, FavoriteState>(
+        bloc: getIt<FavoriteBloc>(),
+        builder: (context, state) {
+          return state.when(
+            initial: () => const Center(
+              child: Text('No favorites yet'),
+            ),
+            success: (favoriteIds) {
+              if (favoriteIds.isEmpty) {
+                return const Center(
+                  child: Text('No favorite movies yet\nClick the heart icon to add one'),
                 );
-              },
+              }
+              return _FavoriteMovieList(favoriteIds: favoriteIds);
+            },
+            error: (message) => Center(
+              child: Text('Error: $message'),
             ),
           );
         },
       ),
+    );
+  }
+}
+
+class _FavoriteMovieList extends StatelessWidget {
+  final List<int> favoriteIds;
+
+  const _FavoriteMovieList({required this.favoriteIds});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      itemCount: favoriteIds.length,
+      itemBuilder: (context, index) {
+        final movieId = favoriteIds[index];
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: ListTile(
+            title: Text('Movie ID: $movieId'),
+            subtitle: const Text('Favorite movie'),
+            trailing: IconButton(
+              icon: const Icon(Icons.favorite, color: Colors.red),
+              onPressed: () {
+                getIt<FavoriteBloc>().add(RemoveFavoriteEvent(movieId));
+              },
+            ),
+            onTap: () {
+              // Navigate to detail screen (to be implemented)
+            },
+          ),
+        );
+      },
     );
   }
 }
