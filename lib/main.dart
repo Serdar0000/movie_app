@@ -6,7 +6,6 @@ import 'package:movie_app/core/di/injector.dart';
 import 'package:movie_app/features/favorite/presentation/bloc/favorite_bloc.dart';
 import 'package:movie_app/features/favorite/presentation/screen/favorite_screen.dart';
 import 'package:movie_app/features/home/presentation/screen/home_screen.dart';
-import 'package:movie_app/features/home/presentation/bloc/home_bloc.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -49,10 +48,7 @@ class _RootTabsState extends State<RootTabs> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      BlocProvider<HomeBloc>.value(
-        value: getIt<HomeBloc>(),
-        child: const HomeScreen(),
-      ),
+      const HomeScreen(),
       BlocProvider<FavoriteBloc>.value(
         value: getIt<FavoriteBloc>(),
         child: const FavoriteScreen(),

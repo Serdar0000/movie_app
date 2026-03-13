@@ -1,11 +1,13 @@
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../exceptions/error_handler.dart';
 import '../network/api_client.dart';
 import '../../features/home/data/datasources/home_remote_data_source.dart';
 import '../../features/home/data/datasources/home_remote_data_source_impl.dart';
+import '../../features/home/data/interactors/movie_interactor_impl.dart';
 import '../../features/home/data/repositories/home_repository_impl.dart';
+import '../../features/home/domain/interactors/movie_interactor.dart';
 import '../../features/home/domain/repositories/home_repository.dart';
-import '../../features/home/presentation/bloc/home_bloc.dart';
 import '../../features/favorite/data/datasources/favorite_local_data_source.dart';
 import '../../features/favorite/data/datasources/favorite_local_data_source_impl.dart';
 import '../../features/favorite/data/repositories/favorite_repository_impl.dart';
@@ -16,6 +18,7 @@ import '../../features/detail/data/datasources/detail_remote_data_source_impl.da
 import '../../features/detail/data/repositories/detail_repository_impl.dart';
 import '../../features/detail/domain/repositories/detail_repository.dart';
 import '../../features/detail/presentation/bloc/detail_bloc.dart';
+import '../../features/home/presentation/presenter/movie_presenter.dart';
 
 final getIt = GetIt.instance;
 
@@ -26,6 +29,7 @@ Future<void> initDependencies() async {
 
   // Register ApiClient (wraps Dio configured with token)
   getIt.registerLazySingleton<ApiClient>(() => ApiClient());
+  getIt.registerLazySingleton<ErrorHandler>(() => ErrorHandler());
 
   // Register Home data sources
   getIt.registerLazySingleton<HomeRemoteDataSource>(
@@ -57,9 +61,17 @@ Future<void> initDependencies() async {
     () => DetailRepositoryImpl(getIt<DetailRemoteDataSource>()),
   );
 
-  // Register BLoCs
-  getIt.registerLazySingleton<HomeBloc>(
-    () => HomeBloc(getIt<HomeRepository>()),
+  // Register home business logic
+  getIt.registerLazySingleton<MovieInteractor>(
+    () => MovieInteractorImpl(
+      homeRepository: getIt<HomeRepository>(),
+      favoriteRepository: getIt<FavoriteRepository>(),
+    ),
+  );
+
+  // Register presenters and BLoCs
+  getIt.registerFactory<MoviePresenter>(
+    () => MoviePresenter(getIt<MovieInteractor>(), getIt<ErrorHandler>()),
   );
 
   getIt.registerLazySingleton<FavoriteBloc>(

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../bloc/home_bloc.dart';
 import '../../domain/entities/movie_entity.dart';
 import '../../../../core/di/injector.dart';
 import '../../../favorite/presentation/bloc/favorite_bloc.dart';
 import '../../../detail/presentation/screen/detail_screen.dart';
+import '../contract/movie_view.dart';
+import '../presenter/movie_presenter.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -13,99 +14,178 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> implements MovieView {
+  late final MoviePresenter _presenter;
+  bool _isLoading = false;
+  String? _errorMessage;
+  List<MovieEntity> _movies = const [];
+
   @override
   void initState() {
     super.initState();
-    context.read<HomeBloc>().add(const FetchPopularMoviesEvent());
+    _presenter = getIt<MoviePresenter>();
+    _presenter.attachView(this);
+    _presenter.loadMovies();
+  }
+
+  @override
+  void dispose() {
+    _presenter.detachView();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final moviesByGenre = _groupMoviesByGenre(_movies);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Popular Movies'),
         centerTitle: false,
       ),
-      body: BlocBuilder<HomeBloc, HomeState>(
-        builder: (context, state) {
-          return state.when(
-            initial: () => const Center(
-              child: Text('No movies loaded yet'),
-            ),
-            loading: () => const Center(
-              child: CircularProgressIndicator(),
-            ),
-            success: (movies, moviesByGenre) {
-              if (moviesByGenre.isEmpty) {
-                return const Center(child: Text('No movies found'));
-              }
-
-              return CustomScrollView(
-                slivers: [
-                  ...moviesByGenre.entries.map((entry) {
-                    final genreName = entry.key;
-                    final genreMovies = entry.value;
-
-                    return SliverList(
-                      delegate: SliverChildListDelegate([
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                          child: Text(
-                            genreName,
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                        ),
-                        SizedBox(
-                          height: 280,
-                          child: ListView.builder(
-                            scrollDirection: Axis.horizontal,
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            itemCount: genreMovies.length,
-                            itemBuilder: (context, index) {
-                              final movie = genreMovies[index];
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 8),
-                                child: _MovieCard(movie: movie),
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                      ]),
-                    );
-                  }),
-                ],
-              );
-            },
-            error: (message) => Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text('Error: $message'),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () {
-                      context
-                          .read<HomeBloc>()
-                          .add(const FetchPopularMoviesEvent());
-                    },
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
+      body: _buildBody(context, moviesByGenre),
     );
+  }
+
+  @override
+  void showMovies(List<MovieEntity> movies) {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _movies = movies;
+      _isLoading = false;
+      _errorMessage = null;
+    });
+  }
+
+  @override
+  void showLoading() {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+  }
+
+  @override
+  void showError(String message) {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = false;
+      _errorMessage = message;
+    });
+  }
+
+  Widget _buildBody(
+    BuildContext context,
+    Map<String, List<MovieEntity>> moviesByGenre,
+  ) {
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('Error: $_errorMessage'),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _presenter.loadMovies,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_movies.isEmpty) {
+      return const Center(
+        child: Text('No movies loaded yet'),
+      );
+    }
+
+    if (moviesByGenre.isEmpty) {
+      return const Center(child: Text('No movies found'));
+    }
+
+    return CustomScrollView(
+      slivers: [
+        ...moviesByGenre.entries.map((entry) {
+          final genreName = entry.key;
+          final genreMovies = entry.value;
+
+          return SliverList(
+            delegate: SliverChildListDelegate([
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Text(
+                  genreName,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              SizedBox(
+                height: 280,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  itemCount: genreMovies.length,
+                  itemBuilder: (context, index) {
+                    final movie = genreMovies[index];
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: _MovieCard(
+                        movie: movie,
+                        onAddFavorite: () => _handleAddFavorite(movie),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 8),
+            ]),
+          );
+        }),
+      ],
+    );
+  }
+
+  Map<String, List<MovieEntity>> _groupMoviesByGenre(List<MovieEntity> movies) {
+    final grouped = <String, List<MovieEntity>>{};
+
+    for (final movie in movies) {
+      final genreName = movie.primaryGenreName ?? 'Unknown';
+      grouped.putIfAbsent(genreName, () => []);
+      grouped[genreName]!.add(movie);
+    }
+
+    return grouped;
+  }
+
+  Future<void> _handleAddFavorite(MovieEntity movie) async {
+    final isSaved = await _presenter.addMovie(movie);
+    if (isSaved) {
+      getIt<FavoriteBloc>().add(AddFavoriteEvent(movie.id));
+    }
   }
 }
 
 class _MovieCard extends StatelessWidget {
   final MovieEntity movie;
+  final VoidCallback onAddFavorite;
 
-  const _MovieCard({required this.movie});
+  const _MovieCard({required this.movie, required this.onAddFavorite});
 
   @override
   Widget build(BuildContext context) {
@@ -217,8 +297,7 @@ class _MovieCard extends StatelessWidget {
                           getIt<FavoriteBloc>()
                               .add(RemoveFavoriteEvent(movie.id));
                         } else {
-                          getIt<FavoriteBloc>()
-                              .add(AddFavoriteEvent(movie.id));
+                          onAddFavorite();
                         }
                       },
                     ),

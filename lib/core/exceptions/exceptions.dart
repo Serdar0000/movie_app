@@ -15,3 +15,7 @@ class ApiException extends AppException {
 class CacheException extends AppException {
   CacheException({required super.message});
 }
+
+class ValidationException extends AppException {
+  ValidationException({required super.message, super.code});
+}
